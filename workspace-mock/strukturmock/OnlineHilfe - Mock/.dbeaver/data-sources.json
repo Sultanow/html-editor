@@ -1,0 +1,30 @@
+{
+	"folders": {},
+	"connections": {
+		"hsqldb_embedded-174c9ff1ede-7648bf69630cdb8d": {
+			"provider": "generic",
+			"driver": "hsqldb_embedded",
+			"name": "true",
+			"save-password": true,
+			"show-system-objects": true,
+			"read-only": false,
+			"configuration": {
+				"database": "C:\\Temp\\hsql\\kmdl;readonly=true",
+				"url": "jdbc:hsqldb:file:C:\\Temp\\hsql\\kmdl;readonly=true",
+				"type": "dev",
+				"auth-model": "native",
+				"handlers": {}
+			}
+		}
+	},
+	"connection-types": {
+		"dev": {
+			"name": "Development",
+			"color": "255,255,255",
+			"description": "Regular development database",
+			"auto-commit": true,
+			"confirm-execute": false,
+			"confirm-data-change": false
+		}
+	}
+}

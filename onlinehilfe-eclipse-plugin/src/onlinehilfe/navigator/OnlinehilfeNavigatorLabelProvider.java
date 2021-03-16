@@ -3,10 +3,13 @@ package onlinehilfe.navigator;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.jface.resource.ImageDescriptor;
+import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.resource.ResourceLocator;
 import org.eclipse.jface.viewers.BaseLabelProvider;
 import org.eclipse.jface.viewers.ILabelProvider;
 import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.ui.internal.UIPlugin;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.FrameworkUtil;
 
@@ -41,11 +44,24 @@ public class OnlinehilfeNavigatorLabelProvider extends BaseLabelProvider impleme
 			}
 			
 			if (imageDescriptor != null) {
-				return imageDescriptor.createImage();
+				//return imageDescriptor.createImage();
+				return getImageInternal(imageDescriptor);
 			}
 		} 
 		return null;
 	}
+	
+	//https://stackoverflow.com/questions/26801704/unknown-error-swt-error-no-more-handles
+	private Image getImageInternal(ImageDescriptor imageDescriptor) {
+        String key = imageDescriptor.getClass().getName();
+        ImageRegistry imageRegistry = UIPlugin.getDefault().getImageRegistry();
+        Image image = imageRegistry.get(key);
+        if (image == null) {
+            image = imageDescriptor.createImage();
+            imageRegistry.put(key, image);
+        }
+        return image;
+    }
 	
 	@Override
 	public boolean isLabelProperty(Object element, String property) {
