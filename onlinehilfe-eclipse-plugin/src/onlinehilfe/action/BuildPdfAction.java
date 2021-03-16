@@ -58,6 +58,11 @@ public class BuildPdfAction extends ActionDelegate implements IWorkbenchWindowAc
 			documentBuilder.build();
 			
 			//Zielausgabedatei definieren und löschen wenn existierend
+			File outputDebugFile = new File(innerTargetLocation.toFile(), "output-debug.fo");
+			if (outputDebugFile.exists() && !outputDebugFile.delete()) {
+				MessageBoxUtil.displayError("Die Debug-ausgabe ist blockiert. Wenn diese noch geöffnet ist, müssen sie diese schießen!");
+				return;
+			}
 			File outputFileDst = new File(targetLocation, "output.pdf");
 			if (outputFileDst.exists() && !outputFileDst.delete()) {
 				MessageBoxUtil.displayError("Die Zielausgabedatei ist blockiert. Wenn diese noch geöffnet ist, müssen sie diese schießen!");
@@ -68,7 +73,7 @@ public class BuildPdfAction extends ActionDelegate implements IWorkbenchWindowAc
 			File transformationXsl = projectLocation.append("_templates").append("pdf.xhtml2fo.xsl").toFile(); 
 			
 			//bereite PDFGenerator vor
-			Properties documentProperties = new Properties();			
+			Properties documentProperties = new Properties();
 			Html2Pdf h2p = new Html2Pdf(
 					innerTargetLocation.toFile(),
 					transformationXsl,
@@ -76,15 +81,15 @@ public class BuildPdfAction extends ActionDelegate implements IWorkbenchWindowAc
 			File contentHtmlFile = innerTargetLocation.append("_contentcollection.html").toFile();
 			
 			//generiere PDF
-			try (OutputStream outputStream = new FileOutputStream(outputFileDst)) {
-				h2p.generatePdf(contentHtmlFile, outputStream);	
+			try (OutputStream fopDebugStream = new FileOutputStream(outputDebugFile); OutputStream outputStream = new FileOutputStream(outputFileDst)) {
+				h2p.generatePdf(contentHtmlFile, fopDebugStream, outputStream);	
 			}
 			
 			//Arbeitsverzeichnis löschen
 			FilesUtil.deleteDirectory(innerTargetLocation.toFile());
 						
 			MessageBoxUtil.displayMessage("Die Ausleitung als Pdf wurde abgeschlossen und in \""+targetLocation.getCanonicalFile()+"\" abgelegt.\n");
-		} catch (CoreException|IOException|TransformerException|FOPException e) {
+		} catch (CoreException|IOException|TransformerException|FOPException|Html2Pdf.Html2PdfMultiException e) {
 			e.printStackTrace();
 			MessageBoxUtil.displayError("Fehler!", e);
 		}

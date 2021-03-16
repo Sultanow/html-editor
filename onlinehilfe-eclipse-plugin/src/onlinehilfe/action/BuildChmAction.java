@@ -73,7 +73,7 @@ public class BuildChmAction extends ActionDelegate implements IWorkbenchWindowAc
 				MessageBoxUtil.displayError("Die Zielausgabedatei ist blockiert. Wenn diese noch geöffnet ist, müssen sie diese schießen!");
 				return;
 			}
-			
+						
 			//toc-File umbenennen zu toc.hhc
 			File tocFile = new File(innerTargetLocation.toFile(), "_toc.html");
 			File tocNewFileDst = new File(innerTargetLocation.toFile(), "toc.hhc");
@@ -107,10 +107,14 @@ public class BuildChmAction extends ActionDelegate implements IWorkbenchWindowAc
 			
 			//TODO: das muss noch umgebaut werden hier wird die contentcollection.html in die mapping.csv (oder wie auch immer genannt) umbenannt.
 			String contentcollectionNewName = projectProperties.getProperty("build.chm.contentcollection.targetfilename");
-			if (contentcollectionNewName != null && !contentcollectionNewName.isBlank()) {
+			if (contentcollectionNewName != null && !contentcollectionNewName.trim().isEmpty()) {
 				File contentcollectionFile = new File(innerTargetLocation.toFile(), "_contentcollection.html");
 				File contentcollectionFileDst = new File(targetLocation, contentcollectionNewName);
 				if (contentcollectionFile.exists()) {
+					if (contentcollectionFileDst.exists() && !contentcollectionFileDst.delete()) {
+						MessageBoxUtil.displayError("Die Zielausgabe-Mapping-Datei ist blockiert. Wenn diese noch geöffnet ist, müssen sie diese schießen!");
+						return;
+					}
 					contentcollectionFile.renameTo(contentcollectionFileDst);
 				}	
 			}

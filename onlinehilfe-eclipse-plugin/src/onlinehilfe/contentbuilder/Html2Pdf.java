@@ -1,12 +1,16 @@
 package onlinehilfe.contentbuilder;
 
+import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -17,6 +21,7 @@ import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.sax.SAXResult;
+import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
 
 import org.apache.fop.apps.FOPException;
@@ -166,7 +171,7 @@ public class Html2Pdf {
 
 	}
 	
-	public void generatePdf(File contentHtml, OutputStream outputStream) throws IOException, FOPException, TransformerConfigurationException, TransformerException {
+	public void generatePdf(File contentHtml, OutputStream debugfopOutputStream, OutputStream outputStream) throws IOException, FOPException, TransformerConfigurationException, TransformerException, Html2PdfMultiException {
 		
 		FopFactory fopFactory = FopFactory.newInstance(htmlRoot.toURI());
 		
@@ -175,42 +180,69 @@ public class Html2Pdf {
 		jsoupDocument.outputSettings().syntax(Syntax.xml);
 		String output = jsoupDocument.outerHtml();
 		output = substituteInStringBySubstitutorMap(output);
-		
-		InputStream contentXhtml = new ByteArrayInputStream(output.getBytes(FilesUtil.CHARSET));
-		
-		StreamSource contentXhtmlSource = new StreamSource(contentXhtml);
+				
 		StreamSource xslSource = new StreamSource(new FileInputStream(transformationXsl));		
+
+		//FO-XML Ausgabe (Debug)
+		Result resDebug = new StreamResult(new BufferedWriter(new OutputStreamWriter(debugfopOutputStream, FilesUtil.CHARSET)));
 		
+		// Zu PDF -------------------------------------------------------------
 		// Construct fop with desired output format
 		Fop fop = fopFactory.newFop(MimeConstants.MIME_PDF, outputStream);
+				
+		// Resulting SAX events (the generated FO) must be piped through to FOP
+		Result res = new SAXResult(fop.getDefaultHandler());
 		
 		// Setup XSLT
 		TransformerFactory transformerFactory = TransformerFactory.newInstance();
-		Transformer transformer = transformerFactory.newTransformer(xslSource);
-		
-		// Resulting SAX events (the generated FO) must be piped through to FOP
-		Result res = new SAXResult(fop.getDefaultHandler());
+		Transformer transformerDebug = transformerFactory.newTransformer(new StreamSource(new FileInputStream(transformationXsl)));
+		Transformer transformer = transformerFactory.newTransformer(new StreamSource(new FileInputStream(transformationXsl)));
 
 		//sorgt für lesbare Fehlermeldugen
-		transformer.setErrorListener(new ErrorListener() {				
+		Html2PdfMultiException exception = new Html2PdfMultiException();
+		transformerDebug.setErrorListener(new ErrorListener() {				
 			@Override
 			public void warning(TransformerException arg0) throws TransformerException {
-				arg0.printStackTrace();
+				exception.addWarning(arg0);
 			}
 			@Override
 			public void fatalError(TransformerException arg0) throws TransformerException {
-				arg0.printStackTrace();
+				exception.addFatalError(arg0);
 			}
 			@Override
 			public void error(TransformerException arg0) throws TransformerException {
-				arg0.printStackTrace();
+				exception.addError(arg0);
 			}
 		});
+		transformer.setErrorListener(new ErrorListener() {				
+			@Override
+			public void warning(TransformerException arg0) throws TransformerException {
+				exception.addWarning(arg0);
+			}
+			@Override
+			public void fatalError(TransformerException arg0) throws TransformerException {
+				exception.addFatalError(arg0);
+			}
+			@Override
+			public void error(TransformerException arg0) throws TransformerException {
+				exception.addError(arg0);
+			}
+		});
+		
+		
+		
+		transformerDebug.transform(new StreamSource(new ByteArrayInputStream(output.getBytes(FilesUtil.CHARSET))), resDebug);
 		
 		// Start XSLT transformation and FOP processing
 		// That's where the XML is first transformed to XSL-FO and then
 		// PDF is created
-		transformer.transform(contentXhtmlSource, res);
+		transformer.transform(new StreamSource(new ByteArrayInputStream(output.getBytes(FilesUtil.CHARSET))), res);
+		
+		
+		
+		if (exception.hasCollectedErrors()) {
+			throw exception;
+		}
 	}
 	
 	private String substituteInStringBySubstitutorMap(final String text) {
@@ -220,4 +252,29 @@ public class Html2Pdf {
 		}
 		return internalText;
 	}
+	
+	public static class Html2PdfMultiException extends Exception {
+		private static final long serialVersionUID = 8942795048891313060L;
+		
+		private boolean collected = false;
+		
+		public void addWarning(Exception e) {
+			addSuppressed(new Exception("WARNING: " +  e.getMessage()));
+			collected = true;
+		}
+		
+		public void addFatalError(Exception e) {
+			addSuppressed(new Exception("FATAL: " +  e.getMessage()));
+			collected = true;
+		}
+		
+		public void addError(Exception e) {
+			addSuppressed(new Exception("ERROR: " +  e.getMessage()));
+			collected = true;
+		}
+		
+		public boolean hasCollectedErrors() {
+			return collected;
+		}
+	} 
 }
