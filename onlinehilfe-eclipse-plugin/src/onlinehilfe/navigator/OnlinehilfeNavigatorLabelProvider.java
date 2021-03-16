@@ -10,9 +10,11 @@ import org.eclipse.jface.viewers.ILabelProvider;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.internal.UIPlugin;
+import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.FrameworkUtil;
 
+import onlinehilfe.Activator;
 import onlinehilfe.navigator.IOnlinehilfeElement.ElementType;
 
 
@@ -32,33 +34,33 @@ public class OnlinehilfeNavigatorLabelProvider extends BaseLabelProvider impleme
 	}
 	
 	public Image getImage(Object element) {
-		//LOGGER.info("call getImage(" + element + ")");
 		if (element instanceof IOnlinehilfeElement) {
-			ImageDescriptor imageDescriptor = null;
-			if (ElementType.NAVROOT == ((IOnlinehilfeElement)element).getElementType()) {
-				imageDescriptor = ResourceLocator.imageDescriptorFromBundle(BUNDLE.getSymbolicName(), "icons/book2d.png").orElse(null);
-			} else if (ElementType.NAVPOINT == ((IOnlinehilfeElement)element).getElementType()) {
-				imageDescriptor = ResourceLocator.imageDescriptorFromBundle(BUNDLE.getSymbolicName(), "icons/bookstay.png").orElse(null);
-			} else {
-				imageDescriptor = ResourceLocator.imageDescriptorFromBundle(BUNDLE.getSymbolicName(), "icons/page.png").orElse(null);
-			}
 			
-			if (imageDescriptor != null) {
-				//return imageDescriptor.createImage();
-				return getImageInternal(imageDescriptor);
+			String imagePathFromBundle = null;
+			if (ElementType.NAVROOT == ((IOnlinehilfeElement)element).getElementType()) {
+				imagePathFromBundle = "icons/book2d.png";
+			} else if (ElementType.NAVPOINT == ((IOnlinehilfeElement)element).getElementType()) {
+				imagePathFromBundle = "icons/bookstay.png";
+			} else {
+				imagePathFromBundle = "icons/page.png";
+			}
+						
+			if (imagePathFromBundle != null) {
+				return getImageFromBundleOrCacheIt(imagePathFromBundle);
 			}
 		} 
 		return null;
 	}
 	
-	//https://stackoverflow.com/questions/26801704/unknown-error-swt-error-no-more-handles
-	private Image getImageInternal(ImageDescriptor imageDescriptor) {
-        String key = imageDescriptor.getClass().getName();
-        ImageRegistry imageRegistry = UIPlugin.getDefault().getImageRegistry();
-        Image image = imageRegistry.get(key);
+
+	private Image getImageFromBundleOrCacheIt(String imagePathFromBundle) {
+		//Idee: https://stackoverflow.com/questions/26801704/unknown-error-swt-error-no-more-handles
+        ImageRegistry imageRegistry = Activator.getDefault().getImageRegistry();
+        Image image = imageRegistry.get(imagePathFromBundle);
         if (image == null) {
+        	ImageDescriptor imageDescriptor = ResourceLocator.imageDescriptorFromBundle(BUNDLE.getSymbolicName(), imagePathFromBundle).orElse(null);	
             image = imageDescriptor.createImage();
-            imageRegistry.put(key, image);
+            imageRegistry.put(imagePathFromBundle, image);
         }
         return image;
     }
