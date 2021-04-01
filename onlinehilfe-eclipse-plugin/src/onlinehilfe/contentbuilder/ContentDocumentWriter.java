@@ -39,8 +39,10 @@ public class ContentDocumentWriter {
 	private static final String VM_TEMPLATE_COVER = "cover.vm";
 	private static final String VM_TEMPLATE_TOC = "toc.vm";
 	private static final String VM_TEMPLATE_FILELIST = "filelist.vm";
-	private static final String VM_TEMPLATE_CONTENT = "content.vm"; //content als einzeldocumente
-	private static final String VM_TEMPLATE_CONTENTCOLLECTION = "contentcollection.vm"; //alle content elemente als gesamtdocument
+	private static final String VM_TEMPLATE_CONTENT = "content.vm"; //Content als Einzeldokumente Velocity-Templating
+	private static final String VM_TEMPLATE_CONTENTCOLLECTION = "contentcollection.vm"; //Alle Content Elemente als ein Gesamtdokument
+	
+	private static final String XSLT_POST_PROCESS_CONTENT = "content.postprocess.xsl"; //Content als Einzeldokumente XSLT-Nachbearbeitung
 	
 	private final File targetDir;
 	private final String templatePrefix;
@@ -69,7 +71,7 @@ public class ContentDocumentWriter {
 	
 	public void buildCover(Charset targetCharset) throws IOException {
 		
-		if (!(new File(templateDir, templatePrefix+VM_TEMPLATE_COVER)).exists()) {
+		if (!(new File(templateDir, templatePrefix + VM_TEMPLATE_COVER)).exists()) {
 			LOGGER.info("Skip. Kein Cover-Template.");
 			return;
 		}
@@ -77,13 +79,13 @@ public class ContentDocumentWriter {
 		LOGGER.info("Erstelle Cover-Document.");
 			
 		Map<String, Object> context = new HashMap<>();
-		Template contenTemplate = ve.getTemplate(templatePrefix+VM_TEMPLATE_COVER, FilesUtil.CHARSET_STRING);
+		Template contenTemplate = ve.getTemplate(templatePrefix + VM_TEMPLATE_COVER, FilesUtil.CHARSET_STRING);
 		writeContentToFile(buildOutputFileName("_cover"), contenTemplate, context, targetCharset);
 	}
 
 	public void buildFilelist(ContentMetadata contentMetadata, Charset targetCharset) throws IOException {
 		
-		if (!(new File(templateDir, templatePrefix+VM_TEMPLATE_FILELIST)).exists()) {
+		if (!(new File(templateDir, templatePrefix + VM_TEMPLATE_FILELIST)).exists()) {
 			LOGGER.info("Skip. Kein Filelist-Template.");
 			return;
 		}
@@ -99,7 +101,7 @@ public class ContentDocumentWriter {
 		Map<String, Object> context = new HashMap<>();
 		context.put("filelist", filelist);
 		
-		Template contenTemplate = ve.getTemplate(templatePrefix+VM_TEMPLATE_FILELIST, FilesUtil.CHARSET_STRING);
+		Template contenTemplate = ve.getTemplate(templatePrefix + VM_TEMPLATE_FILELIST, FilesUtil.CHARSET_STRING);
 		writeContentToFile(buildOutputFileName("_filelist"), contenTemplate, context, targetCharset);
 	}
 	
@@ -121,7 +123,7 @@ public class ContentDocumentWriter {
 	
 	public void buildToc(ContentMetadata contentMetadata, Charset targetCharset) throws IOException {
 		
-		if (!(new File(templateDir, templatePrefix+VM_TEMPLATE_TOC)).exists()) {
+		if (!(new File(templateDir, templatePrefix + VM_TEMPLATE_TOC)).exists()) {
 			LOGGER.info("Skip. Kein ToC-Template.");
 			return;
 		}
@@ -135,7 +137,7 @@ public class ContentDocumentWriter {
 		Map<String, Object> context = new HashMap<>();
 		context.put("toc", toc);
 		
-		Template contenTemplate = ve.getTemplate(templatePrefix+VM_TEMPLATE_TOC, FilesUtil.CHARSET_STRING);
+		Template contenTemplate = ve.getTemplate(templatePrefix + VM_TEMPLATE_TOC, FilesUtil.CHARSET_STRING);
 		writeContentToFile(buildOutputFileName("_toc"), contenTemplate, context, targetCharset);
 	}
 	
@@ -161,7 +163,7 @@ public class ContentDocumentWriter {
 	}
 		
 	public void buildContentcollection(ContentMetadata contentMetadata, Charset targetCharset) throws IOException {
-		if (!(new File(templateDir, templatePrefix+VM_TEMPLATE_CONTENTCOLLECTION)).exists()) {
+		if (!(new File(templateDir, templatePrefix + VM_TEMPLATE_CONTENTCOLLECTION)).exists()) {
 			LOGGER.info("Skip. Kein ContentCollection-Template.");
 			return;
 		}
@@ -174,7 +176,7 @@ public class ContentDocumentWriter {
 		Map<String, Object> context = new HashMap<>();
 		context.put("contents", collectionList );
 		
-		Template contenTemplate = ve.getTemplate(templatePrefix+VM_TEMPLATE_CONTENTCOLLECTION, FilesUtil.CHARSET_STRING);
+		Template contenTemplate = ve.getTemplate(templatePrefix + VM_TEMPLATE_CONTENTCOLLECTION, FilesUtil.CHARSET_STRING);
 		writeContentToFile(buildOutputFileName("_contentcollection"), contenTemplate, context, targetCharset);
 	}
 	
@@ -197,7 +199,7 @@ public class ContentDocumentWriter {
 			
 			if (collectionList==null) {
 				//wenn ich das template hier einmal brauche und es nicht da ist, dann sind die nachfolgenden schritte auch egal...
-				if (!(new File(templateDir, templatePrefix+VM_TEMPLATE_CONTENT)).exists()) {
+				if (!(new File(templateDir, templatePrefix + VM_TEMPLATE_CONTENT)).exists()) {
 					LOGGER.info("Skip. Kein Content-Template.");
 					return;
 				}
@@ -217,7 +219,7 @@ public class ContentDocumentWriter {
 				}
 				context.put("contentSubcontent", contentMetadata.getSubContent());
 							
-				Template contenTemplate = ve.getTemplate(templatePrefix+VM_TEMPLATE_CONTENT, FilesUtil.CHARSET_STRING);
+				Template contenTemplate = ve.getTemplate(templatePrefix + VM_TEMPLATE_CONTENT, FilesUtil.CHARSET_STRING);
 				writeContentToFile(buildOutputFileName(contentMetadata), contenTemplate, context, targetCharset);
 			} else {
 				LOGGER.info("Füge an Content-Dokument: " + contentMetadata.getTitle());
