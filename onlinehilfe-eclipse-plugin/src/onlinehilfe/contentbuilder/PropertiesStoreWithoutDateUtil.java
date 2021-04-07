@@ -17,13 +17,8 @@ import org.apache.commons.codec.Charsets;
  * Die Methode {@link #store(Properties, OutputStream)} speichert Properties auf {@link OutputStream},
  * dabei wird jedoch auf Datum und Kommentar verzichtet. Zusätzlich werden die Keys jedoch sortiert, 
  * um eine stärkere Änlichkeit nach Änderungen zu erhalten.
- * 
- * @author pmuenzne
- *
  */
 public class PropertiesStoreWithoutDateUtil {
-
-	private static final long serialVersionUID = 9083679962769926732L;
 
 	public static void store(Properties properties, OutputStream out) throws IOException {
 		store0(properties, new BufferedWriter(new OutputStreamWriter(out, Charsets.ISO_8859_1)), true);

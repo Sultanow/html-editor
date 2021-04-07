@@ -8,6 +8,8 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.stream.Collectors;
 
+import javax.xml.transform.TransformerException;
+
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IPath;
@@ -16,6 +18,7 @@ import org.osgi.framework.Bundle;
 import org.osgi.framework.FrameworkUtil;
 
 import onlinehilfe.CurrentPropertiesStore;
+import onlinehilfe.contentbuilder.XslTransformUtil.MultiException;
 import onlinehilfe.dialogs.NewContentWizard;
 import onlinehilfe.navigator.OnlinehilfeNavigatorContentProvider;
 
@@ -72,7 +75,7 @@ public class ContentDocumentBuilder {
 		this.charsetContentcollection = charsetContentcollection;
 	}
 	
-	public void build() throws CoreException, IOException {
+	public void build() throws CoreException, IOException, TransformerException, MultiException {
 		File projectDir = projectLocation.toFile();
 		ContentMetadata contentMetadata = workWithFiles(projectDir, "", null);
 

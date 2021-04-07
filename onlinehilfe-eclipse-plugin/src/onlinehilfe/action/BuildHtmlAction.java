@@ -39,7 +39,7 @@ public class BuildHtmlAction extends ActionDelegate implements IWorkbenchWindowA
 			documentBuilder.build();
 			
 			MessageBoxUtil.displayMessage("Die Ausleitung als Html wurde abgeschlossen und in \""+targetLocation.toFile().getCanonicalFile()+"\" abgelegt.\n");
-		} catch (CoreException|IOException e) {
+		} catch (Exception e) {
 			e.printStackTrace();
 			MessageBoxUtil.displayError("Fehler!", e);
 		}

@@ -20,6 +20,7 @@ import onlinehilfe.CurrentPropertiesStore;
 import onlinehilfe.contentbuilder.ContentDocumentBuilder;
 import onlinehilfe.contentbuilder.FilesUtil;
 import onlinehilfe.contentbuilder.Html2Pdf;
+import onlinehilfe.contentbuilder.XslTransformUtil.MultiException;
 import onlinehilfe.contentbuilder.MetadataEscapedTitleFilenameCreator;
 import onlinehilfe.dialogs.MessageBoxUtil;
 
@@ -89,7 +90,7 @@ public class BuildPdfAction extends ActionDelegate implements IWorkbenchWindowAc
 			FilesUtil.deleteDirectory(innerTargetLocation.toFile());
 						
 			MessageBoxUtil.displayMessage("Die Ausleitung als Pdf wurde abgeschlossen und in \""+targetLocation.getCanonicalFile()+"\" abgelegt.\n");
-		} catch (CoreException|IOException|TransformerException|FOPException|Html2Pdf.Html2PdfMultiException e) {
+		} catch (CoreException|IOException|TransformerException|FOPException|MultiException e) {
 			e.printStackTrace();
 			MessageBoxUtil.displayError("Fehler!", e);
 		}
