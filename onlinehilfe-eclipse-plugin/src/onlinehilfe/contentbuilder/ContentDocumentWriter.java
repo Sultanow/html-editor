@@ -1,9 +1,13 @@
 package onlinehilfe.contentbuilder;
 
+import java.io.BufferedOutputStream;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStreamWriter;
 import java.io.StringWriter;
 import java.nio.charset.Charset;
@@ -15,6 +19,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
+import javax.xml.transform.TransformerException;
+
+import org.apache.batik.dom.util.XLinkSupport;
+import org.apache.commons.io.IOUtils;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
@@ -27,14 +35,14 @@ import org.eclipse.core.runtime.Platform;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.FrameworkUtil;
 
-import onlinehilfe.navigator.OnlinehilfeNavigatorContentProvider;
+import onlinehilfe.contentbuilder.XslTransformUtil.MultiException;
 
 public class ContentDocumentWriter {
 	
 	private static final Bundle BUNDLE = FrameworkUtil.getBundle(ContentDocumentWriter.class);
 	private static final ILog LOGGER = Platform.getLog(BUNDLE);
 	
-	private static final VelocityEngine ve = new VelocityEngine();
+	private final VelocityEngine ve;
 	
 	private static final String VM_TEMPLATE_COVER = "cover.vm";
 	private static final String VM_TEMPLATE_TOC = "toc.vm";
@@ -42,36 +50,79 @@ public class ContentDocumentWriter {
 	private static final String VM_TEMPLATE_CONTENT = "content.vm"; //Content als Einzeldokumente Velocity-Templating
 	private static final String VM_TEMPLATE_CONTENTCOLLECTION = "contentcollection.vm"; //Alle Content Elemente als ein Gesamtdokument
 	
+	private static final String XSLT_POST_PROCESS_COVER = "cover.postprocess.xsl";
+	private static final String XSLT_POST_PROCESS_TOC = "toc.postprocess.xsl";
+	private static final String XSLT_POST_PROCESS_FILELIST = "filelist.postprocess.xsl";
 	private static final String XSLT_POST_PROCESS_CONTENT = "content.postprocess.xsl"; //Content als Einzeldokumente XSLT-Nachbearbeitung
+	private static final String XSLT_POST_PROCESS_CONTENTCOLLECTION = "contentcollection.postprocess.xsl"; //Alle Content Elemente als ein Gesamtdokument XSLT-Nachbearbeitung
 	
 	private final File targetDir;
-	private final String templatePrefix;
 	private final File templateDir;
 	
+	private final Template templateIfExistsVMTemplateCover, templateIfExistsVMTemplateToc, templateIfExistsVMTemplateFilelist, templateIfExistsVMTemplateContent, templateIfExistsVMTemplateContentCollection;
+	
+	private final XsltProcessor xsltProcessorIfExistsXsltPostVmCover, xsltProcessorIfExistsXsltPostVmToc, xsltProcessorIfExistsXsltPostVmFilelist, xsltProcessorIfExistsXsltPostVmContent, xsltProcessorIfExistsXsltPostVmContentCollection;
+	
 	private final FilenameCreator filenameCreator;
-		
-	private Properties props = new Properties();
-			
+	
+	private Properties veProps = new Properties();
+				
 	public ContentDocumentWriter(File projectDir, File targetDir, String templatePrefix, FilenameCreator filenameCreator) throws IOException {
 		this.targetDir = targetDir;
 		this.targetDir.mkdirs();
-		this.templatePrefix = templatePrefix;
 		this.templateDir = new File(projectDir, "_templates");
 		this.filenameCreator = filenameCreator;
 		
-		props.put("file.resource.loader.path", templateDir.getCanonicalPath());
-		props.put("input.encoding", FilesUtil.CHARSET_STRING);
-		props.put("output.encoding", FilesUtil.CHARSET_STRING);
-		ve.init(props);
+		//init VelocityEngine
 		
+		veProps.put("file.resource.loader.path", templateDir.getCanonicalPath());
+		veProps.put("input.encoding", FilesUtil.CHARSET_STRING);
+		veProps.put("output.encoding", FilesUtil.CHARSET_STRING);
+		ve = new VelocityEngine(veProps);
+		
+		templateIfExistsVMTemplateCover = createVeTemplaleIfTemplateExistsOrNull(templateDir, templatePrefix + VM_TEMPLATE_COVER);
+		templateIfExistsVMTemplateToc = createVeTemplaleIfTemplateExistsOrNull(templateDir, templatePrefix + VM_TEMPLATE_TOC);
+		templateIfExistsVMTemplateFilelist = createVeTemplaleIfTemplateExistsOrNull(templateDir, templatePrefix + VM_TEMPLATE_FILELIST);
+		templateIfExistsVMTemplateContent = createVeTemplaleIfTemplateExistsOrNull(templateDir, templatePrefix + VM_TEMPLATE_CONTENT);
+		templateIfExistsVMTemplateContentCollection = createVeTemplaleIfTemplateExistsOrNull(templateDir, templatePrefix + VM_TEMPLATE_CONTENTCOLLECTION);
+		
+		xsltProcessorIfExistsXsltPostVmCover = createXsltprocessorIfXsltFileExistsOrNull(templateDir, templatePrefix + XSLT_POST_PROCESS_COVER);
+		xsltProcessorIfExistsXsltPostVmToc = createXsltprocessorIfXsltFileExistsOrNull(templateDir, templatePrefix + XSLT_POST_PROCESS_TOC);
+		xsltProcessorIfExistsXsltPostVmFilelist = createXsltprocessorIfXsltFileExistsOrNull(templateDir, templatePrefix + XSLT_POST_PROCESS_FILELIST);
+		xsltProcessorIfExistsXsltPostVmContent = createXsltprocessorIfXsltFileExistsOrNull(templateDir, templatePrefix + XSLT_POST_PROCESS_CONTENT);
+		xsltProcessorIfExistsXsltPostVmContentCollection = createXsltprocessorIfXsltFileExistsOrNull(templateDir, templatePrefix + XSLT_POST_PROCESS_CONTENTCOLLECTION);
+				
 		//bilder und Styles übertragen
 		FilesUtil.copyFilesInDirectory(new File(projectDir, "_images"), new File(targetDir, "_images"));
 		FilesUtil.copyFilesInDirectory(new File(projectDir, "_styles"), new File(targetDir, "_styles"));
 	}
+
+	private Template createVeTemplaleIfTemplateExistsOrNull(File dir, String filename) {
+		if ((new File(dir, filename)).exists()) {
+			return ve.getTemplate(filename, FilesUtil.CHARSET_STRING);	
+		} else {
+			return null;
+		}
+	}
 	
-	public void buildCover(Charset targetCharset) throws IOException {
+	private static XsltProcessor createXsltprocessorIfXsltFileExistsOrNull(File dir, String filename) {
+		File file = new File(dir, filename);
+		if (file.exists()) {
+			return new XsltProcessor(() -> {
+				try {
+					return new FileInputStream(file);
+				} catch (FileNotFoundException e) {
+					throw new RuntimeException(e);
+				}
+			});	
+		} else {
+			return null;
+		}
+	}
+	
+	public void buildCover(Charset targetCharset) throws IOException, TransformerException, MultiException {
 		
-		if (!(new File(templateDir, templatePrefix + VM_TEMPLATE_COVER)).exists()) {
+		if (templateIfExistsVMTemplateCover==null) {
 			LOGGER.info("Skip. Kein Cover-Template.");
 			return;
 		}
@@ -79,13 +130,12 @@ public class ContentDocumentWriter {
 		LOGGER.info("Erstelle Cover-Document.");
 			
 		Map<String, Object> context = new HashMap<>();
-		Template contenTemplate = ve.getTemplate(templatePrefix + VM_TEMPLATE_COVER, FilesUtil.CHARSET_STRING);
-		writeContentToFile(buildOutputFileName("_cover"), contenTemplate, context, targetCharset);
+		writeContentToFile(buildOutputFileName("_cover"), templateIfExistsVMTemplateCover, context, targetCharset, xsltProcessorIfExistsXsltPostVmCover);
 	}
 
-	public void buildFilelist(ContentMetadata contentMetadata, Charset targetCharset) throws IOException {
+	public void buildFilelist(ContentMetadata contentMetadata, Charset targetCharset) throws IOException, TransformerException, MultiException {
 		
-		if (!(new File(templateDir, templatePrefix + VM_TEMPLATE_FILELIST)).exists()) {
+		if (templateIfExistsVMTemplateFilelist == null) {
 			LOGGER.info("Skip. Kein Filelist-Template.");
 			return;
 		}
@@ -101,11 +151,10 @@ public class ContentDocumentWriter {
 		Map<String, Object> context = new HashMap<>();
 		context.put("filelist", filelist);
 		
-		Template contenTemplate = ve.getTemplate(templatePrefix + VM_TEMPLATE_FILELIST, FilesUtil.CHARSET_STRING);
-		writeContentToFile(buildOutputFileName("_filelist"), contenTemplate, context, targetCharset);
+		writeContentToFile(buildOutputFileName("_filelist"), templateIfExistsVMTemplateFilelist, context, targetCharset, xsltProcessorIfExistsXsltPostVmFilelist);
 	}
 	
-	private List<String> buildFilelistInternal(ContentMetadata contentMetadata) throws IOException {
+	private List<String> buildFilelistInternal(ContentMetadata contentMetadata) throws IOException, TransformerException, MultiException {
 		List<String> filelist = new ArrayList<String>();
 		
 		if (contentMetadata.getTitle()!=null && contentMetadata.getContentFile()!=null) {
@@ -121,9 +170,9 @@ public class ContentDocumentWriter {
 		return filelist;
 	}
 	
-	public void buildToc(ContentMetadata contentMetadata, Charset targetCharset) throws IOException {
+	public void buildToc(ContentMetadata contentMetadata, Charset targetCharset) throws IOException, TransformerException, MultiException {
 		
-		if (!(new File(templateDir, templatePrefix + VM_TEMPLATE_TOC)).exists()) {
+		if (templateIfExistsVMTemplateToc == null) {
 			LOGGER.info("Skip. Kein ToC-Template.");
 			return;
 		}
@@ -137,11 +186,10 @@ public class ContentDocumentWriter {
 		Map<String, Object> context = new HashMap<>();
 		context.put("toc", toc);
 		
-		Template contenTemplate = ve.getTemplate(templatePrefix + VM_TEMPLATE_TOC, FilesUtil.CHARSET_STRING);
-		writeContentToFile(buildOutputFileName("_toc"), contenTemplate, context, targetCharset);
+		writeContentToFile(buildOutputFileName("_toc"), templateIfExistsVMTemplateToc, context, targetCharset, xsltProcessorIfExistsXsltPostVmToc);
 	}
 	
-	private TocEntry buildTocInternal(ContentMetadata contentMetadata) throws IOException {
+	private TocEntry buildTocInternal(ContentMetadata contentMetadata) throws IOException, TransformerException, MultiException {
 		TocEntry tocEntry = new TocEntry();
 		tocEntry.setId(contentMetadata.getId());
 		tocEntry.setTitle(contentMetadata.getTitle());
@@ -156,14 +204,14 @@ public class ContentDocumentWriter {
 		return tocEntry;
 	}
 	
-	public void buildContent(ContentMetadata contentMetadata, Charset targetCharset) throws IOException {
+	public void buildContent(ContentMetadata contentMetadata, Charset targetCharset) throws IOException, TransformerException, MultiException {
 		LOGGER.info("Erstelle Content-Dokumente: " + contentMetadata.getTitle());
 		
 		buildContent(contentMetadata, null, null, null, null, 0, targetCharset);
 	}
 		
-	public void buildContentcollection(ContentMetadata contentMetadata, Charset targetCharset) throws IOException {
-		if (!(new File(templateDir, templatePrefix + VM_TEMPLATE_CONTENTCOLLECTION)).exists()) {
+	public void buildContentcollection(ContentMetadata contentMetadata, Charset targetCharset) throws IOException, TransformerException, MultiException {
+		if (templateIfExistsVMTemplateContentCollection == null) {
 			LOGGER.info("Skip. Kein ContentCollection-Template.");
 			return;
 		}
@@ -176,8 +224,7 @@ public class ContentDocumentWriter {
 		Map<String, Object> context = new HashMap<>();
 		context.put("contents", collectionList );
 		
-		Template contenTemplate = ve.getTemplate(templatePrefix + VM_TEMPLATE_CONTENTCOLLECTION, FilesUtil.CHARSET_STRING);
-		writeContentToFile(buildOutputFileName("_contentcollection"), contenTemplate, context, targetCharset);
+		writeContentToFile(buildOutputFileName("_contentcollection"), templateIfExistsVMTemplateContentCollection, context, targetCharset, xsltProcessorIfExistsXsltPostVmContentCollection);
 	}
 	
 	private void initContentMetadata (ContentMetadata contentMetadata) {
@@ -186,7 +233,7 @@ public class ContentDocumentWriter {
 		}
 	}
 	
-	private void buildContent(ContentMetadata contentMetadata, ContentMetadata parent, ContentMetadata prev, ContentMetadata next, List<ContentMetadata> collectionList, final int navLevel, Charset targetCharset) throws IOException {
+	private void buildContent(ContentMetadata contentMetadata, ContentMetadata parent, ContentMetadata prev, ContentMetadata next, List<ContentMetadata> collectionList, final int navLevel, Charset targetCharset) throws IOException, TransformerException, MultiException {
 		
 		int currentNavLevel = navLevel;
 		
@@ -197,9 +244,10 @@ public class ContentDocumentWriter {
 			contentMetadata.setNavLevel(++currentNavLevel);
 			
 			
+			
 			if (collectionList==null) {
 				//wenn ich das template hier einmal brauche und es nicht da ist, dann sind die nachfolgenden schritte auch egal...
-				if (!(new File(templateDir, templatePrefix + VM_TEMPLATE_CONTENT)).exists()) {
+				if (templateIfExistsVMTemplateContent == null) {
 					LOGGER.info("Skip. Kein Content-Template.");
 					return;
 				}
@@ -219,8 +267,8 @@ public class ContentDocumentWriter {
 				}
 				context.put("contentSubcontent", contentMetadata.getSubContent());
 							
-				Template contenTemplate = ve.getTemplate(templatePrefix + VM_TEMPLATE_CONTENT, FilesUtil.CHARSET_STRING);
-				writeContentToFile(buildOutputFileName(contentMetadata), contenTemplate, context, targetCharset);
+				//XSLT_POST_PROCESS_CONTENT
+				writeContentToFile(buildOutputFileName(contentMetadata), templateIfExistsVMTemplateContent, context, targetCharset, xsltProcessorIfExistsXsltPostVmContent);
 			} else {
 				LOGGER.info("Füge an Content-Dokument: " + contentMetadata.getTitle());
 				collectionList.add(contentMetadata);
@@ -239,7 +287,7 @@ public class ContentDocumentWriter {
 			}
 		}
 	}
-		
+			
 	private File buildOutputFileName(ContentMetadata contentMetadata, String suffix) {
 		return buildOutputFileName(filenameCreator.buildOutputFileName(contentMetadata), suffix);
 	}
@@ -256,7 +304,7 @@ public class ContentDocumentWriter {
 		return new File(targetDir, filename + suffix);
 	}
 		
-	private static void writeContentToFile(File file, Template contenTemplate, Map<String, Object> context, Charset targetCharset) throws IOException {
+	private static void writeContentToFile(File file, Template contenTemplate, Map<String, Object> context, Charset targetCharset, XsltProcessor postContenTemplateXsltProcessor) throws IOException, TransformerException, MultiException {
 		try {
 			IContainer contentFolder = ResourcesPlugin.getWorkspace().getRoot().findContainersForLocationURI(file.getParentFile().toURI())[0];
 			Properties projectDataProperties = FilesUtil.readProjectProperties((IFolder)contentFolder);
@@ -281,9 +329,14 @@ public class ContentDocumentWriter {
 		StringWriter sw = new StringWriter();
 		contenTemplate.merge(vc, sw);
 		String outputContent = sw.toString();
-		
-		try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), targetCharset))) {
-			writer.write(outputContent);
+				
+		try (BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(file))) {
+			if (postContenTemplateXsltProcessor!=null) {
+				InputStream xhtmlInputStream = XslTransformUtil.preConvertHtml2XhtmlInputStream(outputContent, file.getAbsolutePath());
+				postContenTemplateXsltProcessor.transform(xhtmlInputStream, outputStream);
+			} else {
+				outputStream.write(outputContent.getBytes(targetCharset));
+			}
 		}
 	}
 }

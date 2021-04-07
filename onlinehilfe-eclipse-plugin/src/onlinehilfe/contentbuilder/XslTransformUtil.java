@@ -1,18 +1,22 @@
 package onlinehilfe.contentbuilder;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 
 import javax.xml.transform.ErrorListener;
 import javax.xml.transform.TransformerException;
 
-import onlinehilfe.contentbuilder.XsltProcessor.MultiException;
+import org.apache.commons.io.IOUtils;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document.OutputSettings.Syntax;
 
-public final class HtmlToXMLTransformUtil {
+public final class XslTransformUtil {
 	
-	private HtmlToXMLTransformUtil() {}
+	private XslTransformUtil() {}
 	
-	private static Map<String, String> htmlCharacterSequenceStringSubstitutorMap = new HashMap();
+	private static Map<String, String> htmlCharacterSequenceStringSubstitutorMap = new HashMap<>();
 
 	static {
 		//EscapeCharMapping
@@ -141,8 +145,9 @@ public final class HtmlToXMLTransformUtil {
 		return internalText;
 	}
 	
-	public static class MultiExceptionThrowingErrorListener implements ErrorListener {
-		MultiException exception = new MultiException();
+	public static class MultiExceptionCollector implements ErrorListener {
+		private MultiException exception = new MultiException();
+		
 		@Override
 		public void warning(TransformerException arg0) throws TransformerException {
 			exception.addWarning(arg0);
@@ -155,6 +160,23 @@ public final class HtmlToXMLTransformUtil {
 		public void error(TransformerException arg0) throws TransformerException {
 			exception.addError(arg0);
 		}
+		
+		public boolean hasCollectedErrors() {
+			return exception.hasCollectedErrors();
+		}
+		
+		public void throwsErrorsIfCollected() throws MultiException {
+			if (exception.hasCollectedErrors()) {
+				throw exception;
+			}
+		}
+		
+		public void reset() {
+			if (exception.hasCollectedErrors()) {
+				exception = new MultiException();
+			}
+		}
+		
 	}
 	
 	
@@ -182,5 +204,27 @@ public final class HtmlToXMLTransformUtil {
 			return collected;
 		}
 	} 
+	
+	public static String preConvertHtml2XhtmlInputStreamAsString(String html, String docRootUri) throws IOException {
+		//Tranformiere HTML zu XHTML
+		org.jsoup.nodes.Document jsoupDocument = Jsoup.parse(html, docRootUri);
+		jsoupDocument.outputSettings().syntax(Syntax.xml);
+		return substituteInStringBySubstitutorMap(jsoupDocument.outerHtml());
+	}
+	
+	public static String preConvertHtml2XhtmlInputStreamAsString(InputStream inputStream, String docRootUri) throws IOException {
+		//Tranformiere HTML zu XHTML
+		org.jsoup.nodes.Document jsoupDocument = Jsoup.parse(inputStream, FilesUtil.CHARSET_STRING, docRootUri);
+		jsoupDocument.outputSettings().syntax(Syntax.xml);
+		return substituteInStringBySubstitutorMap(jsoupDocument.outerHtml());
+	}
+	
+	public static InputStream preConvertHtml2XhtmlInputStream(String html, String docRootUri) throws IOException {
+		return IOUtils.toInputStream(preConvertHtml2XhtmlInputStreamAsString(html, docRootUri), FilesUtil.CHARSET_STRING);
+	}
+	
+	public static InputStream preConvertHtml2XhtmlInputStream(InputStream inputStream, String docRootUri) throws IOException {
+		return IOUtils.toInputStream(preConvertHtml2XhtmlInputStreamAsString(inputStream, docRootUri), FilesUtil.CHARSET_STRING);
+	}
 	
 }

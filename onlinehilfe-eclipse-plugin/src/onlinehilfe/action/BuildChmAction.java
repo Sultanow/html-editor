@@ -118,8 +118,7 @@ public class BuildChmAction extends ActionDelegate implements IWorkbenchWindowAc
 					contentcollectionFile.renameTo(contentcollectionFileDst);
 				}	
 			}
-			
-			
+				
 			//Arbeitsverzeichnis löschen
 			FilesUtil.deleteDirectory(innerTargetLocation.toFile());
 			
